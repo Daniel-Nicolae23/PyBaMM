@@ -6,13 +6,14 @@ import numpy as np
 from pybamm.simulation import Simulation
 from pybamm.solvers.solution import Solution
 from pybamm.util import import_optional_dependency
-
+import warnings
 
 def plot_voltage_components(
     input_data,
     ax=None,
     show_legend=True,
     split_by_electrode=False,
+    electrode_phases=("primary", "primary"),
     show_plot=True,
     **kwargs_fill,
 ):
@@ -30,6 +31,10 @@ def plot_voltage_components(
     split_by_electrode : bool, optional
         Whether to show the overpotentials for the negative and positive electrodes
         separately. Default is False.
+    electrode_phases : ("primary"|"secondary", "primary"|"secondary"), optional
+        The phase for which to plot the overpotentials when using blended electrodes. 
+        Has no effect if split_by_electrode is False. An warning is printed if using 
+        "secondary" for a single-pahse electrode. Default is "primary" for both electrodes.
     show_plot : bool, optional
         Whether to show the plots. Default is True. Set to False if you want to
         only display the plot after plt.show() has been called.
@@ -52,6 +57,22 @@ def plot_voltage_components(
     else:
         fig, ax = plt.subplots(figsize=(8, 4))
 
+    composite_anode = solution.all_models[0].options['particle phases'][0] == '2'
+    composite_cathode = solution.all_models[0].options['particle phases'][1] == '2'
+
+    if not composite_anode and electrode_phases[0] == "secondary":
+        warnings.warn("The simulation is using a single-phase anode. Ignoring electrode_phases[0].")
+    if not composite_cathode and electrode_phases[1] == "secondary":
+        warnings.warn("The simulation is using a single-phase cathode. Ignoring electrode_phases[1].")
+    if not split_by_electrode and (electrode_phases[0] == "secondary" or electrode_phases[1] == "secondary"):
+        warnings.warn("Ignoring electrode_phases as the overpotentials are not split by electrode.")
+
+    electrode_phases = list(electrode_phases)
+    if composite_anode: electrode_phases[0] += " "
+    else: electrode_phases[0] = ""
+    if composite_cathode: electrode_phases[1] += " "
+    else: electrode_phases[1] = ""
+
     if split_by_electrode is False:
         overpotentials = [
             "Battery particle concentration overpotential [V]",
@@ -69,20 +90,20 @@ def plot_voltage_components(
         ]
     else:
         overpotentials = [
-            "Battery negative particle concentration overpotential [V]",
-            "Battery positive particle concentration overpotential [V]",
-            "X-averaged battery negative reaction overpotential [V]",
-            "X-averaged battery positive reaction overpotential [V]",
+            f"Negative {electrode_phases[0]}particle concentration overpotential [V]" if composite_anode else "Battery negative particle concentration overpotential [V]",
+            f"Positive {electrode_phases[1]}particle concentration overpotential [V]" if composite_cathode else "Battery positive particle concentration overpotential [V]",
+            f"X-averaged negative electrode {electrode_phases[0]}reaction overpotential [V]" if composite_anode else "X-averaged battery negative reaction overpotential [V]",
+            f"X-averaged positive electrode {electrode_phases[1]}reaction overpotential [V]" if composite_cathode else "X-averaged battery positive reaction overpotential [V]",
             "X-averaged battery concentration overpotential [V]",
             "X-averaged battery electrolyte ohmic losses [V]",
             "X-averaged battery negative solid phase ohmic losses [V]",
             "X-averaged battery positive solid phase ohmic losses [V]",
         ]
         labels = [
-            "Negative particle concentration overpotential",
-            "Positive particle concentration overpotential",
-            "Negative reaction overpotential",
-            "Positive reaction overpotential",
+            f"Negative particle {electrode_phases[0]}concentration overpotential",
+            f"Positive particle {electrode_phases[1]}concentration overpotential",
+            f"Negative {electrode_phases[0]}reaction overpotential",
+            f"Positive {electrode_phases[1]}reaction overpotential",
             "Electrolyte concentration overpotential",
             "Ohmic electrolyte overpotential",
             "Ohmic negative electrode overpotential",
@@ -100,8 +121,8 @@ def plot_voltage_components(
             time, ocv, initial_ocv, **kwargs_fill, label="Open-circuit voltage"
         )
     else:
-        ocp_n = solution["Battery negative electrode bulk open-circuit potential [V]"]
-        ocp_p = solution["Battery positive electrode bulk open-circuit potential [V]"]
+        ocp_n = solution[f"Negative electrode {electrode_phases[0]}bulk open-circuit potential [V]" if composite_anode else "Battery negative electrode bulk open-circuit potential [V]"]
+        ocp_p = solution[f"Positive electrode {electrode_phases[1]}bulk open-circuit potential [V]" if composite_cathode else "Battery positive electrode bulk open-circuit potential [V]"]
         initial_ocp_n = ocp_n(time[0])
         initial_ocp_p = ocp_p(time[0])
         initial_ocv = initial_ocp_p - initial_ocp_n
@@ -112,14 +133,14 @@ def plot_voltage_components(
             initial_ocv - delta_ocp_n,
             initial_ocv,
             **kwargs_fill,
-            label="Negative open-circuit potential",
+            label=f"Negative {electrode_phases[0]}open-circuit potential",
         )
         ax.fill_between(
             time,
             initial_ocv - delta_ocp_n + delta_ocp_p,
             initial_ocv - delta_ocp_n,
             **kwargs_fill,
-            label="Positive open-circuit potential",
+            label=f"Positive {electrode_phases[1]}open-circuit potential",
         )
         ocv = initial_ocv - delta_ocp_n + delta_ocp_p
     top = ocv
@@ -127,7 +148,7 @@ def plot_voltage_components(
     for overpotential, label in zip(overpotentials, labels, strict=False):
         # negative overpotentials are positive for a discharge and negative for a charge
         # so we have to multiply by -1 to show them correctly
-        sgn = -1 if "negative" in overpotential else 1
+        sgn = -1 if "egative" in overpotential else 1
         bottom = top + sgn * solution[overpotential].entries
         ax.fill_between(time, bottom, top, **kwargs_fill, label=label)
         top = bottom

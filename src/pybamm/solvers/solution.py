@@ -846,6 +846,7 @@ class Solution:
         ax=None,
         show_legend=True,
         split_by_electrode=False,
+        electrode_phases=("primary", "primary"),
         show_plot=True,
         **kwargs_fill,
     ):
@@ -861,6 +862,10 @@ class Solution:
         split_by_electrode : bool, optional
             Whether to show the overpotentials for the negative and positive electrodes
             separately. Default is False.
+        electrode_phases : ("primary"|"secondary", "primary"|"secondary"), optional
+            The phase for which to plot the overpotentials when using blended electrodes. 
+            Has no effect if split_by_electrode is False. An warning is printed if using 
+            "secondary" for a single-pahse electrode. Default is "primary" for both electrodes.
         show_plot : bool, optional
             Whether to show the plots. Default is True. Set to False if you want to
             only display the plot after plt.show() has been called.
@@ -873,6 +878,7 @@ class Solution:
             ax=ax,
             show_legend=show_legend,
             split_by_electrode=split_by_electrode,
+            electrode_phases=electrode_phases,
             show_plot=show_plot,
             **kwargs_fill,
         )
